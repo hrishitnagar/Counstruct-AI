@@ -9,7 +9,7 @@ from xml.etree import ElementTree
 import streamlit as st
 from dotenv import load_dotenv
 
-from backend.main import ai_json, make_docx
+from backend.main import ai_json, make_docx, normalize_api_key
 
 load_dotenv()
 st.set_page_config(page_title="ConstructAI | Site Intelligence", page_icon="🏗️", layout="wide")
@@ -56,13 +56,17 @@ input, textarea, [data-baseweb="select"] > div { border-radius:2px!important; }
 
 
 def get_secret(name: str, default: str = "") -> str:
+    value = default
     try:
-        value = st.secrets.get(name, default)
-        if value:
-            return str(value).strip()
+        secret_value = st.secrets.get(name, default)
+        if secret_value:
+            value = str(secret_value)
     except Exception:
         pass
-    return os.getenv(name, default).strip()
+    if not value:
+        value = os.getenv(name, default)
+    normalized = normalize_api_key(value)
+    return normalized or ""
 
 
 API_KEY = get_secret("GROQ_API_KEY")

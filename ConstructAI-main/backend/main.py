@@ -17,6 +17,28 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+
+PLACEHOLDER_API_KEYS = {
+    "", "your-groq-api-key", "your_groq_api_key", "your-api-key", "your_api_key",
+    "replace-me", "replace_me", "changeme", "change-me", "your-key", "demo-key",
+    "example-key", "example_api_key", "paste-your-key-here",
+}
+
+
+def normalize_api_key(value: str | None) -> str | None:
+    """Treat obvious placeholder values as unset so demo mode remains usable."""
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned:
+        return None
+    lowered = cleaned.lower()
+    if lowered in PLACEHOLDER_API_KEYS:
+        return None
+    if any(token in lowered for token in ("your-groq-api-key", "your_groq_api_key", "your-api-key", "your_api_key", "replace-me", "replace_me", "changeme", "paste-your-key-here")):
+        return None
+    return cleaned
+
 app = FastAPI(title="ConstructAI", version="1.0.0", description="Construction planning and site intelligence")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -115,7 +137,7 @@ def attach_document(result: dict[str, Any], title: str, generate: bool, fmt: str
 
 def ai_json(feature: str, inputs: dict[str, Any], image: UploadFile | None = None, api_key: str | None = None) -> dict[str, Any] | None:
     """Call Groq's OpenAI-compatible API. Returns None only when no key is configured."""
-    key = (api_key or os.getenv("GROQ_API_KEY", "")).strip()
+    key = normalize_api_key(api_key or os.getenv("GROQ_API_KEY", ""))
     if not key:
         return None
     model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
@@ -174,7 +196,7 @@ def ai_json(feature: str, inputs: dict[str, Any], image: UploadFile | None = Non
 
 def configured_api_key(request: Request | None = None) -> str | None:
     """Read the Groq credential only from server-side environment/secrets."""
-    return os.getenv("GROQ_API_KEY", "").strip() or None
+    return normalize_api_key(os.getenv("GROQ_API_KEY", ""))
 
 
 @app.get("/api/health")
